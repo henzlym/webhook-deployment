@@ -31,13 +31,15 @@ define('BCA_WEBHOOKS_URL', plugin_dir_url( __FILE__ ) );
 define('BCA_WEBHOOKS_CACHE', '1.0.0' );
 define('BCA_WEBHOOKS_OPTION_GROUP', 'bca_webhook' );
 define('BCA_WEBHOOKS_OPTION_NAME', 'bca_webhook_options' );
-
+define('BCA_WEBHOOKS_NAMESPACE', 'bca/webhooks/v1' );
+define('BCA_WEBHOOKS_PAYLOAD_ROUT', '/pull/' );
 // Include Settings
+require_once BCA_WEBHOOKS_DIR . 'includes/helpers.php';
 require_once BCA_WEBHOOKS_DIR . 'includes/settings.php';
 
 function bca_git_webhook_init()
 {
-    register_rest_route('bca/webhooks/v1', '/pull/', array(
+    register_rest_route( BCA_WEBHOOKS_NAMESPACE, '/pull/', array(
         'methods' => 'POST',
         'callback' => 'bca_git_webhook_pull',
         'permission_callback' => '__return_true'
@@ -50,20 +52,21 @@ function bca_git_webhook_pull( WP_REST_Request $request )
     $results = array(
         'error' => false
     );
-    
-    if (isset($_POST['payload']) && $_POST['payload']) {
+
+    if ( ( isset($_POST['payload']) && $_POST['payload'] ) ) {
         // Only respond to POST requests from Github
-        $option = get_option( BCA_WEBHOOKS_OPTION_NAME );
+        $option = __webhook_get_authorization();
+        
+        
         // $secret = 'RDGIYHDPW9ICNL959XCIIP7L3M4T9LNL';
-        $token_secret = ( isset( $option['token_secret'] ) && $option['token_secret'] ) ? $option['token_secret'] : false;
-        if (!$token_secret) {
-            $results['message'] = 'Missing Api Token Secret';
+        if (!$option) {
+            $results['message'] = 'Webhook is not authorized';
             return $results;
         }
-        $LOCAL_ROOT         = WP_CONTENT_DIR . "/themes";
-        $LOCAL_REPO_NAME    = "blkcanvas-theme";
-        $LOCAL_REPO         = "{$LOCAL_ROOT}/{$LOCAL_REPO_NAME}";
-        $REMOTE_REPO        = "https://github.com/henzlym/blkcanvas-theme.git";
+        
+        $token_secret       = $option['token_secret'];
+        $REPO_PATH          = $option['repo_file_path'];
+        $REMOTE_REPO        = $option['repo_url'];
         $BRANCH             = "master";
         /**
          * @link https://gist.github.com/jplitza/88d64ce351d38c2f4198
@@ -84,14 +87,15 @@ function bca_git_webhook_pull( WP_REST_Request $request )
             $results['error'] = true;
             $results['is_valid'] = false;
         }
-        
-        if (file_exists($LOCAL_REPO)) {
+        if ( is_dir( $REPO_PATH ) ) {
             // If there is already a repo, just run a git pull to grab the latest changes
-            shell_exec("cd {$LOCAL_REPO} && git pull");
-
+            shell_exec("cd {$REPO_PATH} && git pull");
+            $results['message'] = 'Update existing repo';
         } else {
+            wp_mkdir_p( $REPO_PATH );
             // If the repo does not exist, then clone it into the parent directory
-            shell_exec("cd {$LOCAL_ROOT} && git clone {$REMOTE_REPO}");
+            shell_exec("cd {$REPO_PATH} && git clone {$REMOTE_REPO} .");
+            $results['message'] = 'Clone repo';
         }
 
     }

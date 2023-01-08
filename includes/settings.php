@@ -3,6 +3,9 @@ namespace Bca\Webhooks;
 
 class Settings
 {
+    public $option_group;
+    public $option_name;
+    
     public function __construct()
     {
         $this->option_group = BCA_WEBHOOKS_OPTION_GROUP;
@@ -74,7 +77,8 @@ class Settings
     {
 
         $option = get_option( $this->option_name );
-        $value = (isset($option[$args['label_for']]) && !empty($option[$args['label_for']])) ? $option[$args['label_for']] : "";
+        $default = ( isset( $args['default'] ) ) ? $args['default'] : "";
+        $value = (isset($option[$args['label_for']]) && !empty($option[$args['label_for']])) ? $option[$args['label_for']] : $default;
         $name = $this->option_name . '[' . $args['label_for'] . ']';
         $type = ( isset( $args['type'] ) ) ? $args['type'] : 'text';
         $class = ( isset( $args['class'] ) ) ? $args['class'] : 'regular-text';
@@ -87,7 +91,7 @@ class Settings
             class="<?php echo esc_attr( $class ); ?>"
         >
         <p class="description">
-            <?php esc_html_e(esc_attr($args['description'])); ?>
+            <?php echo $args['description']; ?>
         </p>
     <?php
     }
@@ -98,7 +102,7 @@ class Settings
      */
     public function section_callback( $args ) {
         ?>
-        <p id="<?php echo esc_attr( $args['id'] ); ?>"><?php esc_html_e( 'Follow the white rabbit.', 'bca' ); ?></p>
+        <p id="<?php echo esc_attr( $args['id'] ); ?>"><?php esc_html_e( 'Webhook URL: ' . get_rest_url( null, BCA_WEBHOOKS_NAMESPACE . '/pull/' ), 'bca' ); ?></p>
         <?php
     }
 
@@ -117,14 +121,27 @@ class Settings
     
         // Register a new field in the "bca_section_developers" section, inside the "bca" page.
         add_settings_field(
-            'token_name', // As of WP 4.6 this value is used only internally.
+            'repo_url', // As of WP 4.6 this value is used only internally.
             // Use $args' label_for to populate the id inside the callback.
-            __( 'API Token Name', 'bca' ),
+            __( 'Clone URL', 'bca' ),
             array( $this, 'field_input'),
             $this->option_group,
             'general',
             array(
-                'label_for' => 'token_name',
+                'label_for' => 'repo_url',
+                'class' => 'regular-text',
+                'description' => 'Enter the clone URL for the remote repository. All clone URLs must begin with the http:// or https://',
+            )
+        );
+        add_settings_field(
+            'repo_name', // As of WP 4.6 this value is used only internally.
+            // Use $args' label_for to populate the id inside the callback.
+            __( 'Repository name', 'bca' ),
+            array( $this, 'field_input'),
+            $this->option_group,
+            'general',
+            array(
+                'label_for' => 'repo_name',
                 'class' => 'regular-text',
                 'description' => '',
             )
@@ -132,14 +149,30 @@ class Settings
         add_settings_field(
             'token_secret', // As of WP 4.6 this value is used only internally.
             // Use $args' label_for to populate the id inside the callback.
-            __( 'API Token Secret', 'bca' ),
+            __( 'Secret Key', 'bca' ),
             array( $this, 'field_input'),
             $this->option_group,
             'general',
             array(
                 'label_for' => 'token_secret',
                 'class' => 'regular-text',
+                'default' => bin2hex(random_bytes(16)),
                 'description' => 'Please enter a unique password to be used for the token secret',
+            )
+        );
+        add_settings_field(
+            'repo_file_path', // As of WP 4.6 this value is used only internally.
+            // Use $args' label_for to populate the id inside the callback.
+            __( 'Server Path', 'bca' ),
+            array( $this, 'field_input'),
+            $this->option_group,
+            'general',
+            array(
+                'label_for' => 'repo_file_path',
+                'class' => 'regular-text',
+                'description' => " Directory on the server where files will be deployed." 
+                    . "<br/>". WP_PLUGIN_DIR . "<br/>" . WP_CONTENT_DIR . "/themes"
+                ,
             )
         );
     }
