@@ -44,9 +44,22 @@ function bca_git_webhook_init()
         'callback' => 'bca_git_webhook_pull',
         'permission_callback' => '__return_true'
     ));
+    register_rest_route( BCA_WEBHOOKS_NAMESPACE, '/pull/(?P<webhook_id>[\da-zA-Z]+)', array(
+        'methods' => 'POST',
+        'callback' => 'bca_git_webhook_pull_id',
+        'permission_callback' => '__return_true'
+    ));
 }
 add_action('rest_api_init', 'bca_git_webhook_init');
 
+function bca_git_webhook_pull_id( WP_REST_Request $request )
+{
+    if (!isset( $request['webhook_id'] )) {
+        $results['message'] = 'No webhook_id provided.';
+        return $results;
+    }
+    return update_repo( $request['webhook_id'] );
+}
 function bca_git_webhook_pull( WP_REST_Request $request )
 {
     $results = array(
@@ -55,48 +68,19 @@ function bca_git_webhook_pull( WP_REST_Request $request )
 
     if ( ( isset($_POST['payload']) && $_POST['payload'] ) ) {
         // Only respond to POST requests from Github
-        $option = __webhook_get_authorization();
+        $repos = __webhook_get_repos();
         
-        
-        // $secret = 'RDGIYHDPW9ICNL959XCIIP7L3M4T9LNL';
-        if (!$option) {
-            $results['message'] = 'Webhook is not authorized';
+        if (empty($repos)) {
+            $results['message'] = 'No webhooks have been found.';
             return $results;
         }
+
+        foreach ($repos as $key => $repo) {
+            
+            $results[$key] = update_repo( $repo['token_secret'] );
+            
+        }
         
-        $token_secret       = $option['token_secret'];
-        $REPO_PATH          = $option['repo_file_path'];
-        $REMOTE_REPO        = $option['repo_url'];
-        $BRANCH             = "master";
-        /**
-         * @link https://gist.github.com/jplitza/88d64ce351d38c2f4198
-         */
-
-        $post_data = file_get_contents('php://input');
-        $signature = 'sha256=' . hash_hmac('sha256', $post_data, $token_secret);
-        $results['raw_payload'] = $post_data;
-        $results['payload'] = urldecode($_POST['payload']);
-        $payload = str_replace( 'payload=', '', $results['payload'] );
-
-        $payload = json_decode( $payload, true );
-
-        if ($signature === $request->get_header('X-Hub-Signature-256') ) {
-            $results['error'] = false;
-            $results['is_valid'] = true;
-        } else {
-            $results['error'] = true;
-            $results['is_valid'] = false;
-        }
-        if ( is_dir( $REPO_PATH ) ) {
-            // If there is already a repo, just run a git pull to grab the latest changes
-            shell_exec("cd {$REPO_PATH} && git pull");
-            $results['message'] = 'Update existing repo';
-        } else {
-            wp_mkdir_p( $REPO_PATH );
-            // If the repo does not exist, then clone it into the parent directory
-            shell_exec("cd {$REPO_PATH} && git clone {$REMOTE_REPO} .");
-            $results['message'] = 'Clone repo';
-        }
 
     }
 

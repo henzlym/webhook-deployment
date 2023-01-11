@@ -95,6 +95,151 @@ class Settings
         </p>
     <?php
     }
+    function repeater_field($args) {
+        ?>
+        <div id="repeater-container">
+            <?php
+            $option = get_option( $this->option_name );
+            $default = ( isset( $args['default'] ) ) ? $args['default'] : "";
+            $repeater_values = (isset($option[$args['label_for']]) && !empty($option[$args['label_for']])) ? $option[$args['label_for']] : $default;
+            $name = $this->option_name . '[' . $args['label_for'] . ']';
+            $type = ( isset( $args['type'] ) ) ? $args['type'] : 'text';
+            $class = ( isset( $args['class'] ) ) ? $args['class'] : 'regular-text';
+            $class = ( isset( $args['class'] ) ) ? $args['class'] : 'regular-text';
+            $nested_fields = ( isset( $args['fields'] ) ) ? $args['fields'] : array();
+            $repeater_id = uniqid();
+
+            if ( ! empty( $repeater_values ) ) {
+                
+                foreach ( $repeater_values as $repeater_name => $repeater_fields ) {
+                    ?>
+                    <div class="repeater-item" id="webhook-<?php echo $repeater_name;?>">
+                    <?php
+                    foreach ( $repeater_fields as $field_name => $field_value ) {
+                        $field_label = ( isset( $nested_fields[$field_name] ) ) ?  $nested_fields[$field_name]['label'] : '';
+                        $field_description = ( isset( $nested_fields[$field_name] ) && isset( $nested_fields[$field_name]['description'] ) ) ?  $nested_fields[$field_name]['description'] : '';
+                        ?>
+                        <div class="repeater-nested-item">
+                        <label for="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $repeater_name ); ?>][<?php echo esc_attr( $field_name ); ?>]">
+                            <?php echo esc_attr( $field_label ); ?>
+                        </label>
+                        <input 
+                            type="<?php echo esc_attr( $type ); ?>" 
+                            id="<?php echo esc_attr($args['label_for']); ?>" 
+                            name="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $repeater_name ); ?>][<?php echo esc_attr( $field_name ); ?>]" 
+                            value="<?php echo esc_attr( $field_value ); ?>"
+                            class="<?php echo esc_attr( $class ); ?>"
+                        >
+                        <p class="description">
+                            <?php echo $field_description; ?>
+                        </p>
+                        </div>
+                        <?php
+                    }
+                    ?>
+                    <button type="button" class="pull-button" data-webhook="<?php echo $repeater_name;?>">Pull</button>
+                    <button type="button" class="remove-button">Remove</button>
+                    </div>
+                    <?php
+                }
+            } else{
+                if (!empty( $nested_fields )) {
+                    ?>
+                    <div class="repeater-item">
+                    <?php
+                    foreach ($nested_fields as $key => $field) {
+                        $field_value = ( isset( $field['default'] ) ) ? $field['default'] : ""; 
+                        $field_description = ( isset( $field['description'] ) && isset( $field['description'] ) ) ?  $field['description'] : '';
+
+                        ?>
+                        <div class="repeater-nested-item">
+                        <label for="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $repeater_id ); ?>][<?php echo esc_attr( $field['name'] ); ?>]">
+                            <?php echo esc_attr( $field['label'] ); ?>
+                        </label>
+                        <input 
+                            type="<?php echo esc_attr( $type ); ?>" 
+                            id="<?php echo esc_attr($args['label_for']); ?>" 
+                            name="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $repeater_id ); ?>][<?php echo esc_attr( $field['name'] ); ?>]" 
+                            value="<?php echo esc_attr( $field_value ); ?>"
+                            class="<?php echo esc_attr( $class ); ?>"
+                        >
+                        <p class="description">
+                            <?php echo $field_description; ?>
+                        </p>
+                        </div>
+                        <?php
+                    }
+                    ?>
+                    </div>
+                    <?php
+                }
+            }
+
+            ?>
+            <button type="button" id="add-button">Add</button>
+        </div>
+        <script>
+            var addButton = document.getElementById("add-button");
+            var pullButtons = document.querySelectorAll(".pull-button");
+            var repeaterContainer = document.getElementById("repeater-container");
+            var nestedFields = <?php echo json_encode( $nested_fields ); ?>;
+            function uniqid() {
+                return (new Date().getTime() + Math.random().toString(36).substr(2, 9));
+            }
+            addButton.addEventListener("click", function () {
+                var newItem = document.createElement("div");
+                var fieldId = uniqid();
+                newItem.classList.add("repeater-item");
+                for (const [key, field] of Object.entries(nestedFields)) {
+                    newItem.innerHTML += `
+                    <div class="repeater-nested-item">
+                        <label for="<?php echo esc_attr( $name ); ?>[${fieldId}][${field.name}]">
+                            ${field.label}
+                        </label>
+                        <input 
+                            type="<?php echo esc_attr( $type ); ?>" 
+                            id="<?php echo esc_attr($args['label_for']); ?>" 
+                            name="<?php echo esc_attr( $name ); ?>[${fieldId}][${field.name}]" 
+                            value="${field.default}"
+                            class="<?php echo esc_attr( $class ); ?>"
+                        >
+                        <p class="description">
+                            ${ field.description || "" }
+                        </p>
+                    </div>
+                    `;
+                };
+                newItem.innerHTML += `
+                    <button type="button" class="remove-button">Remove</button>
+                `;
+                repeaterContainer.appendChild(newItem);
+            });
+    
+            repeaterContainer.addEventListener("click", function (event) {
+                if (event.target.classList.contains("remove-button")) {
+                    event.target.parentElement.remove();
+                }
+            });
+            pullButtons.forEach( pullButton => {
+                var webhook = pullButton.getAttribute('data-webhook');
+                pullButton.addEventListener('click', () => {
+                    fetch(
+                        '/wp-json/bca/webhooks/v1/pull/' + webhook,
+                        { 
+                            body:JSON.stringify({
+                                webhookid:webhook
+                            }), 
+                            method:"POST" 
+                        }
+                    )
+                    .then( (res) => res.json() )
+                    .then( (data) => { console.log(data); })
+                })
+
+            });
+        </script>
+        <?php
+    }
     /**
      * Developers section callback function.
      *
@@ -119,60 +264,49 @@ class Settings
             $this->option_group
         );
     
-        // Register a new field in the "bca_section_developers" section, inside the "bca" page.
         add_settings_field(
-            'repo_url', // As of WP 4.6 this value is used only internally.
+            'repos', // As of WP 4.6 this value is used only internally.
             // Use $args' label_for to populate the id inside the callback.
-            __( 'Clone URL', 'bca' ),
-            array( $this, 'field_input'),
+            __( 'Repos', 'bca' ),
+            array( $this, 'repeater_field'),
             $this->option_group,
             'general',
             array(
-                'label_for' => 'repo_url',
-                'class' => 'regular-text',
-                'description' => 'Enter the clone URL for the remote repository. All clone URLs must begin with the http:// or https://',
-            )
-        );
-        add_settings_field(
-            'repo_name', // As of WP 4.6 this value is used only internally.
-            // Use $args' label_for to populate the id inside the callback.
-            __( 'Repository name', 'bca' ),
-            array( $this, 'field_input'),
-            $this->option_group,
-            'general',
-            array(
-                'label_for' => 'repo_name',
-                'class' => 'regular-text',
+                'label_for' => 'repos',
+                'class' => 'repeater-field',
                 'description' => '',
-            )
-        );
-        add_settings_field(
-            'token_secret', // As of WP 4.6 this value is used only internally.
-            // Use $args' label_for to populate the id inside the callback.
-            __( 'Secret Key', 'bca' ),
-            array( $this, 'field_input'),
-            $this->option_group,
-            'general',
-            array(
-                'label_for' => 'token_secret',
-                'class' => 'regular-text',
-                'default' => bin2hex(random_bytes(16)),
-                'description' => 'Please enter a unique password to be used for the token secret',
-            )
-        );
-        add_settings_field(
-            'repo_file_path', // As of WP 4.6 this value is used only internally.
-            // Use $args' label_for to populate the id inside the callback.
-            __( 'Server Path', 'bca' ),
-            array( $this, 'field_input'),
-            $this->option_group,
-            'general',
-            array(
-                'label_for' => 'repo_file_path',
-                'class' => 'regular-text',
-                'description' => " Directory on the server where files will be deployed." 
-                    . "<br/>". WP_PLUGIN_DIR . "<br/>" . WP_CONTENT_DIR . "/themes"
-                ,
+                'fields' => array(
+                    'repo_url' => array(
+                        'name' => 'repo_url',
+                        'label' => 'Clone URL',
+                        'type' => 'text',
+                        'default' => "",
+                        'description' => 'Enter the clone URL for the remote repository. All clone URLs must begin with the http:// or https://',
+                    ),
+                    'repo_name' => array(
+                        'name' => 'repo_name',
+                        'label' => 'Repository name',
+                        'type' => 'text',
+                        'default' => "",
+                        
+                    ),
+                    'token_secret' => array(
+                        'name' => 'token_secret',
+                        'label' => 'Secret Key',
+                        'type' => 'text',
+                        'default' => bin2hex(random_bytes(16)),
+                        'description' => 'Please enter a unique password to be used for the token secret',
+                    ),
+                    'repo_file_path' => array(
+                        'name' => 'repo_file_path',
+                        'label' => 'Server Path',
+                        'type' => 'text',
+                        'default' => "",
+                        'description' => " Directory on the server where files will be deployed." 
+                            . "<br/>". WP_PLUGIN_DIR . "<br/>" . WP_CONTENT_DIR . "/themes"
+                        ,
+                    )
+                )
             )
         );
     }
