@@ -37,6 +37,15 @@ define('BCA_WEBHOOKS_PAYLOAD_ROUT', '/pull/' );
 require_once BCA_WEBHOOKS_DIR . 'includes/helpers.php';
 require_once BCA_WEBHOOKS_DIR . 'includes/settings.php';
 
+/**
+ * Register the custom REST routes for the Git Webhooks.
+ *
+ * This function adds two custom REST routes:
+ * - /bca-webhooks/pull/: A POST route that triggers the 'bca_git_webhook_pull' function.
+ * - /bca-webhooks/pull/{webhook_id}: A POST route that triggers the 'bca_git_webhook_pull_id' function, where {webhook_id} is a dynamic parameter.
+ *
+ * @since 1.0.0
+ */
 function bca_git_webhook_init()
 {
     register_rest_route( BCA_WEBHOOKS_NAMESPACE, '/pull/', array(
@@ -52,14 +61,32 @@ function bca_git_webhook_init()
 }
 add_action('rest_api_init', 'bca_git_webhook_init');
 
+/**
+ * Pulls the repository using the provided webhook ID
+ *
+ * @since 1.0.0
+ *
+ * @param WP_REST_Request $request The request containing the webhook ID
+ *
+ * @return array The results of the repository update
+ */
 function bca_git_webhook_pull_id( WP_REST_Request $request )
 {
     if (!isset( $request['webhook_id'] )) {
         $results['message'] = 'No webhook_id provided.';
         return $results;
     }
-    return update_repo( $request['webhook_id'] );
+    return __webhook_update_repo( $request['webhook_id'] );
 }
+/**
+ * Function to handle webhook requests from Github for pulling updates.
+ *
+ * @since 1.0.0
+ *
+ * @param WP_REST_Request $request The request object from the REST API.
+ *
+ * @return array $results The results of the pull request, including any errors or messages.
+ */
 function bca_git_webhook_pull( WP_REST_Request $request )
 {
     $results = array(
@@ -77,7 +104,7 @@ function bca_git_webhook_pull( WP_REST_Request $request )
 
         foreach ($repos as $key => $repo) {
             
-            $results[$key] = update_repo( $repo['token_secret'] );
+            $results[$key] = __webhook_update_repo( $repo['token_secret'] );
             
         }
         
