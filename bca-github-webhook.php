@@ -106,12 +106,8 @@ function bca_git_webhook_pull( WP_REST_Request $request )
         foreach ($repos as $key => $repo) {
                         
             $signature = 'sha256=' . hash_hmac('sha256', $post_data, $repo['token_secret'] );
-
-            if ($signature === $request->get_header('X-Hub-Signature-256') ) {
-                $results[$key] = __webhook_update_repo( $repo['token_secret'] );
-            } else {
-                $results['message'] = 'Error in with signature, Invalid.';
-                return $results;
+            if ($signature === $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ) {
+                $results[$key] = __webhook_update_repo( $key );
             }
             
             
