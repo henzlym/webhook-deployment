@@ -94,6 +94,7 @@ function bca_git_webhook_pull( WP_REST_Request $request )
     );
 
     if ( ( isset($_POST['payload']) && $_POST['payload'] ) ) {
+        $post_data = file_get_contents('php://input');
         // Only respond to POST requests from Github
         $repos = __webhook_get_repos();
         
@@ -103,8 +104,16 @@ function bca_git_webhook_pull( WP_REST_Request $request )
         }
 
         foreach ($repos as $key => $repo) {
+                        
+            $signature = 'sha256=' . hash_hmac('sha256', $post_data, $repo['token_secret'] );
+
+            if ($signature === $request->get_header('X-Hub-Signature-256') ) {
+                $results[$key] = __webhook_update_repo( $repo['token_secret'] );
+            } else {
+                $results['message'] = 'Error in with signature, Invalid.';
+                return $results;
+            }
             
-            $results[$key] = __webhook_update_repo( $repo['token_secret'] );
             
         }
         
