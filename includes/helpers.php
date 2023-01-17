@@ -71,7 +71,7 @@ function __webhook_update_repo( $webhook_id )
 
     if (is_dir($REPO_PATH)) {
         // If there is already a repo, just run a git pull to grab the latest changes
-        shell_exec("cd $REPO_PATH && git reset --hard && git fetch origin && git pull origin master");
+        shell_exec("cd $REPO_PATH && git reset --hard && git fetch origin && git pull");
         $results['message'] = 'Update existing repo';
     } else {
         wp_mkdir_p($REPO_PATH);
